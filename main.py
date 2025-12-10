@@ -118,9 +118,9 @@ class Game:
         if self.undo_stack:
             last_state = self.undo_stack.pop()
             self.load_state(last_state)
-            # Reset dugged Tiles
+            # Reset dug Tiles
             self.board.dug = []
-            # Update dugged list
+            # Update dug list
             for row in range(ROWS):
                 for col in range(COLS):
                     if self.board.board_list[row][col].revealed:
