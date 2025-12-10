@@ -1,6 +1,7 @@
 import pygame
 from settings import *
 from s_logic import *
+from collections import Counter
 
 class Game:
     def __init__(self):
@@ -126,6 +127,19 @@ class Game:
                     if self.board.board_list[row][col].revealed:
                         self.board.dug.append((row, col))
 
+    def push_state(self):
+        """
+        Save the current state and push it to the undo_stack if the current state
+        is different to the recent saved state
+        
+        :param self: Description
+        """
+        
+        current_state = self.save_state()
+        # Check if the current_state and most recent state are unidentical
+        if not self.undo_stack or current_state != self.undo_stack[-1]:
+            self.undo_stack.append(current_state)
+
     def events(self):
         mouse_pos = pygame.mouse.get_pos()
         
@@ -160,8 +174,7 @@ class Game:
 
                         if event.button == 1:
                             # Snapshot current state before any change
-                            current_state = self.save_state()
-                            self.undo_stack.append(current_state)
+                            self.push_state()
                             
                             if self.detector_count > 0 and not self.board.has_dugged(grid_row, grid_col):
                                 self.detector_count -= 1
@@ -177,8 +190,7 @@ class Game:
 
                         if event.button == 1:
                             # Snapshot current state before any change
-                            current_state = self.save_state()
-                            self.undo_stack.append(current_state)
+                            self.push_state()
                             
                             if not self.board.board_list[grid_row][grid_col].flagged:
                                 if not self.board.dig(grid_row, grid_col):
@@ -195,8 +207,7 @@ class Game:
 
                         if event.button == 3:
                             # Snapshot current state before toggling flag
-                            current_state = self.save_state()
-                            self.undo_stack.append(current_state)
+                            self.push_state()
                             
                             if not self.board.board_list[grid_row][grid_col].revealed:
                                 self.board.board_list[grid_row][grid_col].flagged = not self.board.board_list[grid_row][grid_col].flagged
