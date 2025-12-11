@@ -8,7 +8,7 @@ class Game:
         pygame.font.init()
         
         self.detector = False
-        self.detector_count = settings.DETECT_AVAILABLE
+        self.detector_count = settings.DETECT_CHARGES
 
         self.screen = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT + 80))
         pygame.display.set_caption(settings.TITLE)

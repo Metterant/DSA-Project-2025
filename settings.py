@@ -23,7 +23,7 @@ FPS = 60
 TITLE = "Minesweeper Clone"
 
 # Abilities
-DETECT_AVAILABLE = 3
+DETECT_CHARGES = 5
 
 tile_numbers = []
 for i in range(1, 9):
