@@ -6,9 +6,6 @@ from collections import Counter
 class Game:
     def __init__(self):
         pygame.font.init()
-        
-        self.detector = False
-        self.detector_count = settings.DETECT_CHARGES
 
         self.screen = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT + 80))
         pygame.display.set_caption(settings.TITLE)
@@ -25,6 +22,8 @@ class Game:
         self.board = Board()
         self.undo_stack = []
         self.win = False
+        self.detector = False
+        self.detector_count = settings.DETECT_CHARGES
 
     def run(self):
         self.playing = True
