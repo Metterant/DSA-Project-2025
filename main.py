@@ -1,75 +1,165 @@
 import pygame
-from settings import *
+import settings          # <-- sửa: import nguyên module
 from s_logic import *
 from collections import Counter
 
 class Game:
     def __init__(self):
-        # Initialize pygame font module
         pygame.font.init()
         
-        # Mine detector mode
         self.detector = False
-        self.detector_count = DETECT_AVAILABLE
+        self.detector_count = settings.DETECT_AVAILABLE
 
-        # Increase window height to leave room for the controls
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT + 80))
-        pygame.display.set_caption(TITLE)
+        self.screen = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT + 80))
+        pygame.display.set_caption(settings.TITLE)
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(font_path, 30)  # Use 'Arial' font
+        self.font = pygame.font.Font(settings.font_path, 30)
         
-        # Create undo button
-        self.undo_button = pygame.Rect(UNDO_BUTTON_X, UNDO_BUTTON_Y, 
-                                      UNDO_BUTTON_WIDTH, UNDO_BUTTON_HEIGHT)
+        self.undo_button = pygame.Rect(settings.UNDO_BUTTON_X, settings.UNDO_BUTTON_Y,
+                                      settings.UNDO_BUTTON_WIDTH, settings.UNDO_BUTTON_HEIGHT)
         self.button_hover = False
 
     def new(self):
+        print("Difficulty:", settings.DIFFICULTY)
+        print("Mines:", settings.get_mine_amount())  # Debug confirm
         self.board = Board()
-        # self.board.display_board()
-        # Stack storing board states for undo
         self.undo_stack = []
-        self.win = False  # Track win/loss state
+        self.win = False
 
     def run(self):
         self.playing = True
         while self.playing:
-            self.clock.tick(FPS)
+            self.clock.tick(settings.FPS)
             self.events()
             self.draw()
         else:
             self.end_screen()
 
     def draw(self):
-        self.screen.fill(BGCOLOUR)
+        self.screen.fill(settings.BGCOLOUR)
         self.board.draw(self.screen)
         
-        # Draw undo button
-        button_colour = BUTTON_HOVER if self.button_hover else BUTTON_COLOUR
+        button_colour = settings.BUTTON_HOVER if self.button_hover else settings.BUTTON_COLOUR
         pygame.draw.rect(self.screen, button_colour, self.undo_button, border_radius=8)
-        pygame.draw.rect(self.screen, WHITE, self.undo_button, 2, border_radius=8)
+        pygame.draw.rect(self.screen, settings.WHITE, self.undo_button, 2, border_radius=8)
         
-        # Draw button label
-        undo_text = self.font.render("UNDO", True, BUTTON_TEXT)
+        undo_text = self.font.render("UNDO", True, settings.BUTTON_TEXT)
         text_rect = undo_text.get_rect(center=self.undo_button.center)
         self.screen.blit(undo_text, text_rect)
         
-        # Draw remaining undo count
         undo_count = len(self.undo_stack)
-        count_text = self.font.render(f"Undo: {undo_count}", True, YELLOW)
-        self.screen.blit(count_text, (10, HEIGHT + 10))
+        count_text = self.font.render(f"Undo: {undo_count}", True, settings.YELLOW)
+        self.screen.blit(count_text, (10, settings.HEIGHT + 10))
 
-        # Draw Detector Mode
         if self.detector:
-            detector_text_color = GREEN
-            detector_mode_text = 'Active'
+            color = settings.GREEN
+            status = "Active"
         else:
-            detector_text_color = RED
-            detector_mode_text = 'Inactive'
+            color = settings.RED
+            status = "Inactive"
 
-        detector_text = self.font.render(f"Detector: {detector_mode_text} ({self.detector_count})", True, detector_text_color)
-        self.screen.blit(detector_text, (WIDTH - detector_text.get_width() - 10, HEIGHT + 10))
+        detector_text = self.font.render(
+            f"Detector: {status} ({self.detector_count})", True, color)
+        self.screen.blit(detector_text,
+                         (settings.WIDTH - detector_text.get_width() - 10, settings.HEIGHT + 10))
 
         pygame.display.flip()
+
+    def main_menu(self):
+        menu_running = True
+        title_font = pygame.font.SysFont("Arial", 48, bold=True)
+        button_font = pygame.font.SysFont("Arial", 32)
+
+        play_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 - 20, 200, 60)
+        settings_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 70, 200, 60)
+        quit_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 160, 200, 60)
+
+        while menu_running:
+            self.screen.fill((30, 30, 30))
+
+            title_text = title_font.render("MINESWEEPER CLONE", True, (255, 255, 0))
+            self.screen.blit(title_text, title_text.get_rect(center=(settings.WIDTH//2, settings.HEIGHT//2 - 120)))
+
+            for btn in [play_button, settings_button, quit_button]:
+                pygame.draw.rect(self.screen, (70, 70, 70), btn, border_radius=8)
+                pygame.draw.rect(self.screen, (200, 200, 200), btn, 3, border_radius=8)
+
+            self.screen.blit(button_font.render("PLAY GAME", True, settings.WHITE), button_font.render("PLAY GAME", True, settings.WHITE).get_rect(center=play_button.center))
+            self.screen.blit(button_font.render("SETTING", True, settings.WHITE), button_font.render("SETTING", True, settings.WHITE).get_rect(center=settings_button.center))
+            self.screen.blit(button_font.render("QUIT", True, settings.WHITE), button_font.render("QUIT", True, settings.WHITE).get_rect(center=quit_button.center))
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    return
+
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if play_button.collidepoint(event.pos):
+                        return
+                    if settings_button.collidepoint(event.pos):
+                        self.settings_menu()
+                    if quit_button.collidepoint(event.pos):
+                        pygame.quit()
+                        quit()
+
+            pygame.display.flip()
+
+    def settings_menu(self):
+        running = True
+        font = pygame.font.SysFont("Arial", 32)
+
+        easy_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 - 40, 200, 50)
+        medium_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 20, 200, 50)
+        hard_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 80, 200, 50)
+        back_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 160, 200, 50)
+
+        # danh sách nút (để tránh dùng Rect làm key)
+        buttons = [
+            (easy_button, "EASY"),
+            (medium_button, "MEDIUM"),
+            (hard_button, "HARD"),
+            (back_button, "BACK")
+        ]
+
+        while running:
+            self.screen.fill((30, 30, 30))
+
+            title = font.render("SETTINGS: DIFFICULTY", True, settings.YELLOW)
+            self.screen.blit(title, title.get_rect(center=(settings.WIDTH//2, settings.HEIGHT//2 - 120)))
+
+            # vẽ toàn bộ nút + chữ
+            for btn, text in buttons:
+                pygame.draw.rect(self.screen, settings.BUTTON_COLOUR, btn, border_radius=8)
+                pygame.draw.rect(self.screen, settings.WHITE, btn, 2, border_radius=8)
+
+                t = font.render(text, True, settings.WHITE)
+                self.screen.blit(t, t.get_rect(center=btn.center))
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    pos = event.pos
+
+                    if easy_button.collidepoint(pos):
+                        settings.DIFFICULTY = "EASY"
+                        return
+
+                    if medium_button.collidepoint(pos):
+                        settings.DIFFICULTY = "MEDIUM"
+                        return
+
+                    if hard_button.collidepoint(pos):
+                        settings.DIFFICULTY = "HARD"
+                        return
+
+                    if back_button.collidepoint(pos):
+                        return  # quay về main menu
+
+            pygame.display.flip()
+
 
     def check_win(self):
         for row in self.board.board_list:
@@ -79,11 +169,10 @@ class Game:
         return True
 
     def save_state(self):
-        """Store current board state for undo"""
         state = []
-        for row in range(ROWS):
+        for row in range(settings.ROWS):
             row_state = []
-            for col in range(COLS):
+            for col in range(settings.COLS):
                 tile = self.board.board_list[row][col]
                 row_state.append({
                     'revealed': tile.revealed,
@@ -94,58 +183,42 @@ class Game:
         return state
 
     def load_state(self, state):
-        """Restore board state from undo stack"""
-        for row in range(ROWS):
-            for col in range(COLS):
-                tile_data = state[row][col]
+        for row in range(settings.ROWS):
+            for col in range(settings.COLS):
+                data = state[row][col]
                 tile = self.board.board_list[row][col]
-                tile.revealed = tile_data['revealed']
-                tile.flagged = tile_data['flagged']
-                tile.type = tile_data['type']
-                
-                # Update tile image based on type
+
+                tile.revealed = data['revealed']
+                tile.flagged = data['flagged']
+                tile.type = data['type']
+
                 if tile.type == "X":
-                    tile.image = tile_mine
+                    tile.image = settings.tile_mine
                 elif tile.type == "C":
-                    # Recalculate neighbouring mine count
                     total_mines = self.board.check_neighbours(row, col)
                     if total_mines > 0:
-                        tile.image = tile_numbers[total_mines-1]
+                        tile.image = settings.tile_numbers[total_mines - 1]
                 elif tile.type == ".":
-                    tile.image = tile_empty
+                    tile.image = settings.tile_empty
 
     def undo(self):
-        """Perform Undo"""
         if self.undo_stack:
-            last_state = self.undo_stack.pop()
-            self.load_state(last_state)
-            # Reset dug Tiles
+            self.load_state(self.undo_stack.pop())
             self.board.dug = []
-            # Update dug list
-            for row in range(ROWS):
-                for col in range(COLS):
-                    if self.board.board_list[row][col].revealed:
-                        self.board.dug.append((row, col))
+            for r in range(settings.ROWS):
+                for c in range(settings.COLS):
+                    if self.board.board_list[r][c].revealed:
+                        self.board.dug.append((r, c))
 
     def push_state(self):
-        """
-        Save the current state and push it to the undo_stack if the current state
-        is different to the recent saved state
-        
-        :param self: Description
-        """
-        
-        current_state = self.save_state()
-        # Check if the current_state and most recent state are unidentical
-        if not self.undo_stack or current_state != self.undo_stack[-1]:
-            self.undo_stack.append(current_state)
+        current = self.save_state()
+        if not self.undo_stack or current != self.undo_stack[-1]:
+            self.undo_stack.append(current)
 
     def events(self):
         mouse_pos = pygame.mouse.get_pos()
-        
-        # Update undo hover state
         self.button_hover = self.undo_button.collidepoint(mouse_pos)
-        
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -157,125 +230,109 @@ class Game:
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = pygame.mouse.get_pos()
-                
-                # Handle undo button click
+
                 if self.undo_button.collidepoint(mx, my) and event.button == 1:
                     self.undo()
-                    continue  # Use continue instead of return
+                    continue
 
                 if self.detector:
-                    # Handle board clicks (only within board area)
-                    if my < HEIGHT:
-                        grid_col = mx // TILESIZE
-                        grid_row = my // TILESIZE
+                    if my < settings.HEIGHT:
+                        col = mx // settings.TILESIZE
+                        row = my // settings.TILESIZE
+                        if 0 <= col < settings.COLS and 0 <= row < settings.ROWS:
+                            if event.button == 1:
+                                self.push_state()
+                                if self.detector_count > 0:
+                                    self.detector_count -= 1
+                                    self.board.reveal(row, col)
+                else:
+                    if my < settings.HEIGHT:
+                        col = mx // settings.TILESIZE
+                        row = my // settings.TILESIZE
+                        if 0 <= col < settings.COLS and 0 <= row < settings.ROWS:
 
-                        if not (0 <= grid_col < COLS and 0 <= grid_row < ROWS):
-                            continue
+                            tile = self.board.board_list[row][col]
 
-                        if event.button == 1:
-                            # Snapshot current state before any change
-                            self.push_state()
-                            
-                            if self.detector_count > 0 and not self.board.has_dugged(grid_row, grid_col):
-                                self.detector_count -= 1
-                                self.board.reveal(grid_row, grid_col)
-                else:          
-                    # Handle board clicks (only within board area)
-                    if my < HEIGHT:
-                        grid_col = mx // TILESIZE
-                        grid_row = my // TILESIZE
+                            if event.button == 1:
+                                self.push_state()
+                                if not tile.flagged:
+                                    if not self.board.dig(row, col):
+                                        for r in self.board.board_list:
+                                            for t in r:
+                                                if t.flagged and t.type != "X":
+                                                    t.flagged = False
+                                                    t.revealed = True
+                                                    t.image = settings.tile_not_mine
+                                                elif t.type == "X":
+                                                    t.revealed = True
+                                        self.playing = False
 
-                        if not (0 <= grid_col < COLS and 0 <= grid_row < ROWS):
-                            continue
-
-                        if event.button == 1:
-                            # Snapshot current state before any change
-                            self.push_state()
-                            
-                            if not self.board.board_list[grid_row][grid_col].flagged:
-                                if not self.board.dig(grid_row, grid_col):
-                                    # explode
-                                    for row in self.board.board_list:
-                                        for tile in row:
-                                            if tile.flagged and tile.type != "X":
-                                                tile.flagged = False
-                                                tile.revealed = True
-                                                tile.image = tile_not_mine
-                                            elif tile.type == "X":
-                                                tile.revealed = True
-                                    self.playing = False
-
-                        if event.button == 3:
-                            # Snapshot current state before toggling flag
-                            self.push_state()
-                            
-                            if not self.board.board_list[grid_row][grid_col].revealed:
-                                self.board.board_list[grid_row][grid_col].flagged = not self.board.board_list[grid_row][grid_col].flagged
-
+                            if event.button == 3:
+                                self.push_state()
+                                if not tile.revealed:
+                                    tile.flagged = not tile.flagged
 
                 if self.check_win():
                     self.win = True
                     self.playing = False
-                    for row in self.board.board_list:
-                        for tile in row:
-                            if not tile.revealed:
-                                tile.flagged = True
-
+                    for r in self.board.board_list:
+                        for t in r:
+                            if not t.revealed:
+                                t.flagged = True
 
     def end_screen(self):
-        # Show win/lose message
         font = pygame.font.SysFont('Arial', 50)
-        if self.win:
-            message = "YOU WIN!"
-            colour = GREEN
-        else:
-            message = "GAME OVER!"
-            colour = RED
-            
-        text = font.render(message, True, colour)
-        text_rect = text.get_rect(center=(WIDTH//2, HEIGHT//2))
-        
-        # Draw restart button
-        restart_button = pygame.Rect(WIDTH//2 - 80, HEIGHT//2 + 50, 160, 50)
+        text = font.render("YOU WIN!" if self.win else "GAME OVER!", True,
+                           settings.GREEN if self.win else settings.RED)
+
+        text_rect = text.get_rect(center=(settings.WIDTH//2, settings.HEIGHT//2))
+        restart_button = pygame.Rect(settings.WIDTH//2 - 80, settings.HEIGHT//2 + 50, 160, 50)
+        menu_button = pygame.Rect(settings.WIDTH//2 - 80, settings.HEIGHT//2 + 120, 160, 50)
         
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     quit(0)
-
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    mx, my = pygame.mouse.get_pos()
-                    if restart_button.collidepoint(mx, my):
+                    if restart_button.collidepoint(event.pos):
                         return
+                    if menu_button.collidepoint(event.pos):
+                        self.main_menu()       
+                        return         
 
-            # Draw end screen
-            self.screen.fill(BGCOLOUR)
+            self.screen.fill(settings.BGCOLOUR)
             self.board.draw(self.screen)
-            
-            # Draw translucent overlay
-            overlay = pygame.Surface((WIDTH, HEIGHT))
+
+            overlay = pygame.Surface((settings.WIDTH, settings.HEIGHT))
             overlay.set_alpha(180)
             overlay.fill((0, 0, 0))
             self.screen.blit(overlay, (0, 0))
-            
-            # Draw message
+
             self.screen.blit(text, text_rect)
-            
-            # Draw restart button
-            pygame.draw.rect(self.screen, BUTTON_COLOUR, restart_button, border_radius=8)
-            pygame.draw.rect(self.screen, WHITE, restart_button, 2, border_radius=8)
-            
+
+            pygame.draw.rect(self.screen, settings.BUTTON_COLOUR, restart_button, border_radius=8)
+            pygame.draw.rect(self.screen, settings.WHITE, restart_button, 2, border_radius=8)
+
             restart_font = pygame.font.SysFont('Arial', 30)
-            restart_text = restart_font.render("PLAY AGAIN", True, BUTTON_TEXT)
+            restart_text = restart_font.render("PLAY AGAIN", True, settings.BUTTON_TEXT)
             restart_rect = restart_text.get_rect(center=restart_button.center)
             self.screen.blit(restart_text, restart_rect)
             
+            pygame.draw.rect(self.screen, settings.BUTTON_COLOUR, menu_button, border_radius=8)
+            pygame.draw.rect(self.screen, settings.WHITE, menu_button, 2, border_radius=8)
+
+            menu_text = restart_font.render("MAIN MENU", True, settings.BUTTON_TEXT)
+            menu_rect = menu_text.get_rect(center=menu_button.center)
+            self.screen.blit(menu_text, menu_rect)
+
             pygame.display.flip()
 
 
 if __name__ == "__main__":
     game = Game()
+    game.main_menu()
+
     while True:
         game.new()
         game.run()
