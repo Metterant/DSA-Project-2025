@@ -31,11 +31,14 @@ class Board:
             for row in range(settings.ROWS)
         ]
 
-        self.place_mines()
-        self.place_clues()
         self.dug = []
 
-    def place_mines(self):
+    def start_placing(self, ex_row, ex_col):
+        self.place_mines(ex_row, ex_col)
+        self.place_clues()
+
+
+    def place_mines(self, ex_row, ex_col):
         mines_to_place = settings.get_mine_amount()
         print("Placing mines:", mines_to_place)  # DEBUG
 
@@ -44,7 +47,7 @@ class Board:
             row = random.randint(0, settings.ROWS - 1)
             col = random.randint(0, settings.COLS - 1)
 
-            if self.board_list[row][col].type == ".":
+            if not (abs(ex_row - row) < 2 and abs(ex_col - col) < 2) and self.board_list[row][col].type == ".":
                 self.board_list[row][col].image = settings.tile_mine
                 self.board_list[row][col].type = "X"
                 placed += 1

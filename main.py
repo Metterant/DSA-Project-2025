@@ -30,6 +30,7 @@ class Game:
         self.detector = False
         self.detector_count = settings.DETECT_CHARGES
         self.cheat_enabled = settings.CHEAT_ENABLED
+        self.has_left_clicked = False
 
         self.update_probabilities()
 
@@ -200,7 +201,6 @@ class Game:
                     
                     if cheat_button.collidepoint(pos):
                         settings.CHEAT_ENABLED = not settings.CHEAT_ENABLED
-                        print(settings.CHEAT_ENABLED)
                         return
 
                     if back_button.collidepoint(pos):
@@ -290,7 +290,7 @@ class Game:
                     self.undo()
                     continue
 
-                if self.detector:
+                if self.detector: # Detector Mode
                     if my < settings.HEIGHT:
                         col = mx // settings.TILESIZE
                         row = my // settings.TILESIZE
@@ -301,7 +301,7 @@ class Game:
                                     self.detector_count -= 1
                                     self.board.reveal(row, col)
                                     self.update_probabilities()
-                else:
+                else: # Normal Mode
                     if my < settings.HEIGHT:
                         col = mx // settings.TILESIZE
                         row = my // settings.TILESIZE
@@ -310,9 +310,14 @@ class Game:
                             tile = self.board.board_list[row][col]
 
                             if event.button == 1:
+                                if self.has_left_clicked == False:
+                                    self.board.start_placing(row, col)
+                                    self.has_left_clicked = True
+
                                 self.push_state()
                                 if not tile.flagged:
                                     if not self.board.dig(row, col):
+                                        # dug a Mine
                                         for r in self.board.board_list:
                                             for t in r:
                                                 if t.flagged and t.type != "X":
