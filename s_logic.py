@@ -31,11 +31,6 @@ class Board:
             for row in range(settings.ROWS)
         ]
 
-        self.percentage = [
-            [Tile(col, row, settings.tile_empty, 0.0) for col in range(settings.COLS)]
-            for row in range(settings.ROWS)
-        ]
-
         self.place_mines()
         self.place_clues()
         self.dug = []
