@@ -21,6 +21,7 @@ WIDTH = TILESIZE * COLS
 HEIGHT = TILESIZE * ROWS
 FPS = 60
 TITLE = "Minesweeper Clone"
+CHEAT_ENABLED = False
 
 # Abilities
 DETECT_CHARGES = 5
