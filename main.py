@@ -1,5 +1,5 @@
 import pygame
-import settings          # <-- sửa: import nguyên module
+import settings
 from s_logic import *
 from collections import Counter
 
@@ -11,19 +11,60 @@ class Game:
         pygame.display.set_caption(settings.TITLE)
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(settings.font_path, 30)
+        self.prob_font = pygame.font.Font(settings.font_path, 16)
+        self.prob_grid = None
         
         self.undo_button = pygame.Rect(settings.UNDO_BUTTON_X, settings.UNDO_BUTTON_Y,
                                       settings.UNDO_BUTTON_WIDTH, settings.UNDO_BUTTON_HEIGHT)
         self.button_hover = False
+        self.is_showing_prob = False
+        self.cheat_enabled = settings.CHEAT_ENABLED
 
     def new(self):
         print("Difficulty:", settings.DIFFICULTY)
-        print("Mines:", settings.get_mine_amount())  # Debug confirm
+        print("Mines:", settings.get_mine_amount())
+        print('Cheat:', 'Enabled' if settings.CHEAT_ENABLED else 'Disabled')
         self.board = Board()
         self.undo_stack = []
         self.win = False
         self.detector = False
         self.detector_count = settings.DETECT_CHARGES
+        self.cheat_enabled = settings.CHEAT_ENABLED
+
+        self.update_probabilities()
+
+    def update_probabilities(self):
+        """Recompute cached mine probabilities for drawing overlay."""
+        try:
+            self.prob_grid = self.board.probability_grid()
+        except Exception:
+            # Don't let probability calculation break the game loop.
+            self.prob_grid = None
+
+    def draw_probabilities(self):
+        
+        """Draw probability percentages on top of undug tiles."""
+        if not self.prob_grid:
+            return
+
+        for r in range(settings.ROWS):
+            for c in range(settings.COLS):
+                tile = self.board.board_list[r][c]
+                if tile.revealed or tile.flagged:
+                    continue
+
+                p = self.prob_grid[r][c]
+                pct = int(round(p * 100))
+                color = settings.BLACK
+
+                if pct == 0: # 100% safe
+                    color = (0, 106, 0)
+                elif pct == 100: # 100% mine
+                    color = (166, 0, 0)
+                    
+                text = self.prob_font.render(f"{pct}%", True, color)
+                rect = text.get_rect(center=(tile.x + settings.TILESIZE // 2, tile.y + settings.TILESIZE // 2))
+                self.screen.blit(text, rect)
 
     def run(self):
         self.playing = True
@@ -37,6 +78,9 @@ class Game:
     def draw(self):
         self.screen.fill(settings.BGCOLOUR)
         self.board.draw(self.screen)
+
+        if self.cheat_enabled and self.is_showing_prob:
+            self.draw_probabilities()
         
         button_colour = settings.BUTTON_HOVER if self.button_hover else settings.BUTTON_COLOUR
         pygame.draw.rect(self.screen, button_colour, self.undo_button, border_radius=8)
@@ -66,8 +110,8 @@ class Game:
 
     def main_menu(self):
         menu_running = True
-        title_font = pygame.font.SysFont("Arial", 48, bold=True)
-        button_font = pygame.font.SysFont("Arial", 32)
+        title_font = pygame.font.Font(settings.font_path, 52)
+        button_font = pygame.font.Font(settings.font_path, 40)
 
         play_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 - 20, 200, 60)
         settings_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 70, 200, 60)
@@ -105,28 +149,28 @@ class Game:
 
     def settings_menu(self):
         running = True
-        font = pygame.font.SysFont("Arial", 32)
+        font = pygame.font.Font(settings.font_path, 40)
 
-        easy_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 - 40, 200, 50)
-        medium_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 20, 200, 50)
-        hard_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 80, 200, 50)
-        back_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 160, 200, 50)
+        easy_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 - 100, 200, 50)
+        medium_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 - 40, 200, 50)
+        hard_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 20, 200, 50)
+        cheat_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 100, 200, 50)
+        back_button = pygame.Rect(settings.WIDTH//2 - 100, settings.HEIGHT//2 + 200, 200, 50)
 
-        # danh sách nút (để tránh dùng Rect làm key)
         buttons = [
             (easy_button, "EASY"),
             (medium_button, "MEDIUM"),
             (hard_button, "HARD"),
-            (back_button, "BACK")
+            (back_button, "BACK"),
+            (cheat_button, "DISABLE CHEAT" if settings.CHEAT_ENABLED else "ENABLE CHEAT")
         ]
 
         while running:
             self.screen.fill((30, 30, 30))
 
             title = font.render("SETTINGS: DIFFICULTY", True, settings.YELLOW)
-            self.screen.blit(title, title.get_rect(center=(settings.WIDTH//2, settings.HEIGHT//2 - 120)))
+            self.screen.blit(title, title.get_rect(center=(settings.WIDTH//2, settings.HEIGHT//2 - 160)))
 
-            # vẽ toàn bộ nút + chữ
             for btn, text in buttons:
                 pygame.draw.rect(self.screen, settings.BUTTON_COLOUR, btn, border_radius=8)
                 pygame.draw.rect(self.screen, settings.WHITE, btn, 2, border_radius=8)
@@ -153,9 +197,14 @@ class Game:
                     if hard_button.collidepoint(pos):
                         settings.DIFFICULTY = "HARD"
                         return
+                    
+                    if cheat_button.collidepoint(pos):
+                        settings.CHEAT_ENABLED = not settings.CHEAT_ENABLED
+                        print(settings.CHEAT_ENABLED)
+                        return
 
                     if back_button.collidepoint(pos):
-                        return  # quay về main menu
+                        return  # return to main menu
 
             pygame.display.flip()
 
@@ -208,9 +257,11 @@ class Game:
                 for c in range(settings.COLS):
                     if self.board.board_list[r][c].revealed:
                         self.board.dug.append((r, c))
+            if self.cheat_enabled:
+                self.update_probabilities()
 
     def push_state(self):
-        current = self.save_state()
+        current = self.save_state() 
         if not self.undo_stack or current != self.undo_stack[-1]:
             self.undo_stack.append(current)
 
@@ -226,6 +277,11 @@ class Game:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     self.detector = not self.detector
+                    
+            modifiers = pygame.key.get_mods()
+            # Bit-wise calculation
+            if modifiers & pygame.KMOD_SHIFT:
+                self.is_showing_prob = not self.is_showing_prob
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = pygame.mouse.get_pos()
@@ -244,6 +300,7 @@ class Game:
                                 if self.detector_count > 0:
                                     self.detector_count -= 1
                                     self.board.reveal(row, col)
+                                    self.update_probabilities()
                 else:
                     if my < settings.HEIGHT:
                         col = mx // settings.TILESIZE
@@ -265,11 +322,15 @@ class Game:
                                                 elif t.type == "X":
                                                     t.revealed = True
                                         self.playing = False
+                                    if self.cheat_enabled:
+                                        self.update_probabilities()
 
                             if event.button == 3:
                                 self.push_state()
                                 if not tile.revealed:
                                     tile.flagged = not tile.flagged
+                                    if self.cheat_enabled:
+                                        self.update_probabilities()
 
                 if self.check_win():
                     self.win = True
