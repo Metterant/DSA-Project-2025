@@ -115,8 +115,8 @@ class Board:
         - Flagged tiles return 1.0 (treated as mines during inference)
         """
 
-        flagged = set()
-        revealed_mines = 0
+        flagged = set()  # set[(r,c)] tiles flagged as mines by the player
+        revealed_mines = 0  # count of mines already revealed (usually after game-over)
         for r in range(settings.ROWS):
             for c in range(settings.COLS):
                 t = self.board_list[r][c]
@@ -126,26 +126,26 @@ class Board:
                     revealed_mines += 1
 
 
-        total_mines = settings.get_mine_amount()
-        remaining_mines = total_mines - len(flagged) - revealed_mines
+        total_mines = settings.get_mine_amount()  # total mines for the chosen difficulty
+        remaining_mines = total_mines - len(flagged) - revealed_mines  # mines not accounted for yet
         if remaining_mines < 0:
             remaining_mines = 0
 
         unknown = [(r, c) for r in range(settings.ROWS) for c in range(settings.COLS)
-                   if not self.board_list[r][c].revealed and (r, c) not in flagged]
+                   if not self.board_list[r][c].revealed and (r, c) not in flagged]  # unrevealed & unflagged tiles
 
         # Build constraints from revealed safe tiles.
-        frontier_set = set()
-        raw_constraints = []  # (list[(r,c)], required)
+        frontier_set = set()  # set[(r,c)] unknown tiles that appear in at least one constraint
+        raw_constraints = []  # list[(tiles, required)] where tiles are unknown neighbours of a clue
         for r in range(settings.ROWS):
             for c in range(settings.COLS):
                 t = self.board_list[r][c]
                 if not t.revealed or t.type == "X":
                     continue
 
-                number = self.get_revealed_number(r, c)
-                flagged_nei = 0
-                unknown_nei = []
+                number = self.get_revealed_number(r, c)  # visible clue number for this revealed safe tile
+                flagged_nei = 0  # flagged neighbours around this revealed tile
+                unknown_nei = []  # unrevealed & unflagged neighbours around this revealed tile
                 for nr, nc in self.iter_neighbours(r, c):
                     if (nr, nc) in flagged:
                         flagged_nei += 1
@@ -154,7 +154,7 @@ class Board:
                         if not nt.revealed:
                             unknown_nei.append((nr, nc))
 
-                required = number - flagged_nei
+                required = number - flagged_nei  # mines that must be in unknown_nei to satisfy this clue
                 if required < 0:
                     # Flags contradict the visible number.
                     return [[0.0 for _ in range(settings.COLS)] for _ in range(settings.ROWS)]
@@ -169,41 +169,41 @@ class Board:
                 raw_constraints.append((unknown_nei, required))
 
         # Start probability grid.
-        probs = [[0.0 for _ in range(settings.COLS)] for _ in range(settings.ROWS)]
+        probs = [[0.0 for _ in range(settings.COLS)] for _ in range(settings.ROWS)]  # output P(mine) grid
         for (r, c) in flagged:
             probs[r][c] = 1.0
 
         # No visible constraints: every unknown tile has the same base rate.
         if not raw_constraints:
-            base = (remaining_mines / len(unknown)) if unknown else 0.0
+            base = (remaining_mines / len(unknown)) if unknown else 0.0  # uniform base-rate with no constraints
             for (r, c) in unknown:
                 probs[r][c] = base
             return probs
 
-        frontier = sorted(frontier_set)
-        frontier_index = {pos: i for i, pos in enumerate(frontier)}
-        outside = [pos for pos in unknown if pos not in frontier_set]
-        outside_count = len(outside)
+        frontier = sorted(frontier_set)  # list[(r,c)] unknowns adjacent to revealed safe tiles
+        frontier_index = {pos: i for i, pos in enumerate(frontier)}  # map tile -> variable index
+        outside = [pos for pos in unknown if pos not in frontier_set]  # unknowns not constrained by any clue
+        outside_count = len(outside)  # count of outside tiles
 
         # Convert constraints to index form.
-        constraints = []  # (idxs, required)
+        constraints = []  # list[(idxs, required)] where idxs are frontier variable indices
         for tiles, req in raw_constraints:
             idxs = [frontier_index[pos] for pos in tiles if pos in frontier_index]
             if idxs:
                 constraints.append((idxs, req))
 
-        n = len(frontier)
+        n = len(frontier)  # number of frontier variables
         if n == 0:
             # Everything unknown is outside; just base rate with global mine count.
-            base = (remaining_mines / len(unknown)) if unknown else 0.0
+            base = (remaining_mines / len(unknown)) if unknown else 0.0  # uniform base-rate across all unknowns
             for (r, c) in unknown:
                 probs[r][c] = base
             return probs
 
-        var_to_constraints = [[] for _ in range(n)]
-        cons_required = []
-        cons_sum = []
-        cons_unassigned = []
+        var_to_constraints = [[] for _ in range(n)]  # adjacency: var index -> list of constraint indices
+        cons_required = []  # cons_required[i] = required mines for constraint i
+        cons_sum = []  # cons_sum[i] = mines currently assigned in constraint i
+        cons_unassigned = []  # cons_unassigned[i] = remaining unassigned vars in constraint i
         for ci, (idxs, req) in enumerate(constraints):
             cons_required.append(req)
             cons_sum.append(0)
@@ -211,11 +211,11 @@ class Board:
             for v in idxs:
                 var_to_constraints[v].append(ci)
 
-        assignment = [0] * n
-        mine_weight = [0] * n
-        total_weight = 0
-        outside_mines_weighted_sum = 0
-        solutions_found = 0
+        assignment = [0] * n  # current partial assignment of frontier vars (0 safe, 1 mine)
+        mine_weight = [0] * n  # weighted count of solutions where var is a mine
+        total_weight = 0  # sum of weights over all consistent solutions found
+        outside_mines_weighted_sum = 0  # weighted sum of outside_mines across solutions
+        solutions_found = 0  # number of solutions encountered (used to cap work)
 
         def feasible(ci):
             req = cons_required[ci]
@@ -223,7 +223,7 @@ class Board:
             u = cons_unassigned[ci]
             return s <= req <= s + u
 
-        cap = None if n <= max_frontier_exact else max_solutions_cap
+        cap = None if n <= max_frontier_exact else max_solutions_cap  # cap solutions for large frontiers
 
         def recurse(i):
             nonlocal total_weight, outside_mines_weighted_sum, solutions_found
@@ -231,15 +231,15 @@ class Board:
                 return
 
             if i == n:
-                frontier_mines = sum(assignment)
-                outside_mines = remaining_mines - frontier_mines
+                frontier_mines = sum(assignment)  # mines placed in frontier under this assignment
+                outside_mines = remaining_mines - frontier_mines  # mines that must be placed in outside region
                 if outside_mines < 0 or outside_mines > outside_count:
                     return
 
                 if outside_count == 0:
-                    weight = 1 if outside_mines == 0 else 0
+                    weight = 1 if outside_mines == 0 else 0  # only valid if no mines remain to place
                 else:
-                    weight = math.comb(outside_count, outside_mines)
+                    weight = math.comb(outside_count, outside_mines)  # number of outside placements
                 if weight == 0:
                     return
 
